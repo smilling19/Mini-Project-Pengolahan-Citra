@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Histogram Specification Studio</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Menggunakan Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Control Panel -->
+        <aside class="sidebar card">
+            <div class="sidebar-header">
+                <h2>📊 Histogram Studio</h2>
+                <p class="subtitle">Analisis Citra Spesifikasi Histogram</p>
+            </div>
+
+            <div class="upload-group">
+                <h3>1. Source Image (Input)</h3>
+                <label for="srcImageInput" class="upload-area" id="srcUploadArea">
+                    <span class="upload-icon">📥</span>
+                    <span class="upload-text">Klik atau Drag Gambar Input</span>
+                    <input type="file" id="srcImageInput" accept="image/*" hidden>
+                </label>
+            </div>
+
+            <div class="upload-group">
+                <h3>2. Reference Image (Target)</h3>
+                <label for="refImageInput" class="upload-area" id="refUploadArea">
+                    <span class="upload-icon">📥</span>
+                    <span class="upload-text">Klik atau Drag Gambar Target</span>
+                    <input type="file" id="refImageInput" accept="image/*" hidden>
+                </label>
+            </div>
+
+            <div class="actions">
+                <button id="processBtn" class="btn btn-primary" disabled>
+                    <span class="btn-text">⚡ Proses Histogram Specification</span>
+                    <span class="loader hidden"></span>
+                </button>
+                <button id="showStepsBtn" class="btn btn-info hidden" style="background:#0284C7;color:white;border-color:#0284C7;">
+                    📋 Lihat Detail Perhitungan
+                </button>
+                <button id="resetBtn" class="btn btn-secondary">♻️ Reset Data</button>
+            </div>
+            
+            <!-- Edukasi Section di Sidebar -->
+            <div class="education-section card hidden" id="educationPanel">
+                <h3>💡 Penjelasan Proses</h3>
+                <div class="accordion" id="stepsAccordion">
+                    <div class="accordion-item active" data-step="1">
+                        <div class="accordion-header">1. Ekstraksi Profil Kecerahan</div>
+                        <div class="accordion-body">
+                            Mengambil nilai kecerahan (luminance/grayscale) dari citra asli sebagai dasar perhitungan. Warna asli (RGB) disimpan dan akan dipertahankan pada hasil akhir.
+                        </div>
+                    </div>
+                    <div class="accordion-item" data-step="2">
+                        <div class="accordion-header">2. Perhitungan Histogram</div>
+                        <div class="accordion-body">
+                            Menghitung distribusi intensitas pixel (0-255) yang menunjukkan sebaran area gelap, terang, dan kontras pada masing-masing citra.
+                        </div>
+                    </div>
+                    <div class="accordion-item" data-step="3">
+                        <div class="accordion-header">3. Pembuatan CDF</div>
+                        <div class="accordion-body">
+                            Histogram lalu diakumulasikan (Cumulative Distribution Function) untuk mendapatkan probabilitas kumulatif yang nilainya selalu naik, digunakan sebagai acuan pemetaan.
+                        </div>
+                    </div>
+                    <div class="accordion-item" data-step="4">
+                        <div class="accordion-header">4. Histogram Matching & Color Scaling</div>
+                        <div class="accordion-body">
+                            Memetakan nilai kecerahan lama ke yang baru berdasarkan kecocokan CDF. Rasio perubahan kecerahan ini kemudian dikalikan pada nilai RGB awal sehingga warna asli tetap utuh berskala sama.
+                        </div>
+                    </div>
+                    <div class="accordion-item" data-step="5">
+                        <div class="accordion-header">5. Hasil Akhir</div>
+                        <div class="accordion-body" id="dynamicResultExplanation">
+                            Citra hasil akan memiliki distribusi yang menyerupai target.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <!-- Canvas Tersembunyi untuk proses pixel -->
+            <canvas id="hiddenCanvas" hidden></canvas>
+
+            <!-- Previews -->
+            <section class="preview-section grid-3">
+                <div class="image-card card">
+                    <div class="card-header">
+                        <h3>Source Image</h3>
+                    </div>
+                    <div class="image-wrapper">
+                        <img id="srcPreview" src="" alt="Source Preview" hidden>
+                        <div class="placeholder" id="srcPlaceholder">Belum ada gambar</div>
+                    </div>
+                    <div class="stats" id="srcStats"></div>
+                </div>
+
+                <div class="image-card card highlight-card">
+                    <div class="card-header">
+                        <h3>Output (Matched)</h3>
+                    </div>
+                    <div class="image-wrapper result-wrapper">
+                        <img id="outPreview" src="" alt="Output Preview" hidden>
+                        <div class="placeholder" id="outPlaceholder">Menunggu Proses...</div>
+                    </div>
+                    <div class="stats" id="outStats"></div>
+                </div>
+
+                <div class="image-card card">
+                    <div class="card-header">
+                        <h3>Target Image</h3>
+                    </div>
+                    <div class="image-wrapper">
+                        <img id="refPreview" src="" alt="Reference Preview" hidden>
+                        <div class="placeholder" id="refPlaceholder">Belum ada gambar</div>
+                    </div>
+                    <div class="stats" id="refStats"></div>
+                </div>
+            </section>
+
+            <!-- Charts -->
+            <section class="charts-section grid-3" id="chartsContainer">
+                <div class="chart-card card">
+                    <h3>Histogram Source</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="srcChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-card card highlight-card">
+                    <h3>Histogram Output</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="outChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card card">
+                    <h3>Histogram Target</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="refChart"></canvas>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Detail Perhitungan -->
+    <div id="stepsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Langkah-Langkah Histogram Spesifikasi</h2>
+                <button class="close-modal" id="closeModalBtn">&times;</button>
+            </div>
+            <div class="modal-body" id="stepsModalBody">
+                <!-- Dynamic Tables Here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+</body>
+</html>
